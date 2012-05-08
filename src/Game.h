@@ -21,12 +21,12 @@ public:
 	Game(const SystemPath &path, const vector3d &pos);
 
 	// load game
-	Game(Serializer::Reader &rd);
+	Game(Serializer::Reader &rd,std::string filename);
 
 	~Game();
 
 	// save game
-	void Serialize(Serializer::Writer &wr);
+	void Serialize(Serializer::Writer &wr,std::string filename);
 
 	// various game states
 	bool IsNormalSpace() const { return m_state == STATE_NORMAL; }
