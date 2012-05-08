@@ -17,6 +17,7 @@
 #include "InfoView.h"
 #include "ObjectViewerView.h"
 #include "graphics/Renderer.h"
+#include "Factions.h"
 
 static const int  s_saveVersion   = 51;
 static const char s_saveStart[]   = "PIONEER";
@@ -42,6 +43,8 @@ Game::Game(const SystemPath &path) :
 	m_player->SetFrame(station->GetFrame());
 	m_player->SetDockedWith(station, 0);
 
+	m_factions.Reset(new Factions);
+
 	CreateViews();
 }
 
@@ -66,6 +69,8 @@ Game::Game(const SystemPath &path, const vector3d &pos) :
 
 	m_player->SetPosition(pos);
 	m_player->SetVelocity(vector3d(0,0,0));
+
+	m_factions.Reset(new Factions);
 
 	CreateViews();
 }
