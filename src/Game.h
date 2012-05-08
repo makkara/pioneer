@@ -10,6 +10,7 @@ class HyperspaceCloud;
 class Player;
 class ShipController;
 class Space;
+class Factions;
 
 class Game {
 public:
@@ -81,6 +82,7 @@ private:
 	void SwitchToHyperspace();
 	void SwitchToNormalSpace();
 
+	ScopedPtr<Factions> m_factions;
 	ScopedPtr<Space> m_space;
 	double m_time;
 
