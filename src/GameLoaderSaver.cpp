@@ -73,7 +73,7 @@ bool GameLoader::LoadFromFile(const std::string &filename)
 		Serializer::Reader rd(f);
 		fclose(f);
 
-		m_game = new Game(rd);
+		m_game = new Game(rd,GetFilename());
 	}
 	catch (SavedGameCorruptException) {
 		Gui::Screen::ShowBadError(Lang::GAME_LOAD_CORRUPT);
@@ -104,7 +104,7 @@ bool GameSaver::SaveToFile(const std::string &filename)
 		}
 
 		Serializer::Writer wr;
-		m_game->Serialize(wr);
+		m_game->Serialize(wr,filename);
 
 		const std::string data = wr.GetData();
 

@@ -100,7 +100,7 @@ Game::~Game()
 	m_player.Reset();
 }
 
-Game::Game(Serializer::Reader &rd) :
+Game::Game(Serializer::Reader &rd,std::string filename) :
 	m_timeAccel(TIMEACCEL_PAUSED),
 	m_requestedTimeAccel(TIMEACCEL_PAUSED),
 	m_forceTimeAccel(false)
@@ -116,6 +116,9 @@ Game::Game(Serializer::Reader &rd) :
 		fprintf(stderr, "can't load savefile, expected version: %d\n", s_saveVersion);
 		throw SavedGameCorruptException();
 	}
+
+	//get database file
+	m_factions.Reset(new Factions(filename+".db"));
 
 	Serializer::Reader section;
 
@@ -162,7 +165,7 @@ Game::Game(Serializer::Reader &rd) :
 		if (rd.Byte() != s_saveEnd[i]) throw SavedGameCorruptException();
 }
 
-void Game::Serialize(Serializer::Writer &wr)
+void Game::Serialize(Serializer::Writer &wr,std::string filename)
 {
 	// leading signature
 	for (Uint32 i = 0; i < strlen(s_saveStart)+1; i++)
@@ -228,6 +231,8 @@ void Game::Serialize(Serializer::Writer &wr)
 	// trailing signature
 	for (Uint32 i = 0; i < strlen(s_saveEnd)+1; i++)
 		wr.Byte(s_saveEnd[i]);
+
+	m_factions->Save(filename+".db");
 }
 
 void Game::TimeStep(float step)
