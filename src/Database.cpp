@@ -63,3 +63,31 @@ Database::~Database()
 {
 	sqlite3_close(handle);
 }
+
+bool Database::Execute(std::string statement)
+{
+	const char * str=statement.c_str();
+
+	do{
+		sqlite3_stmt *stmt;
+		if(sqlite3_prepare_v2(handle,str,-1,&stmt,&str)!=SQLITE_OK)
+		{
+			return false;
+		}
+
+		int rv;
+		while((rv=sqlite3_step(stmt))!=SQLITE_DONE)
+		{
+			if(rv!=SQLITE_ROW)//if something else than row returned happened -> fail
+			{
+				sqlite3_finalize(stmt);
+				return false;
+			}
+		}
+
+		sqlite3_finalize(stmt);
+
+	}while(*str);//loop until str is set to end of string
+
+	return true;
+}

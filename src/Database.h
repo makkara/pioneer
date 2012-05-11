@@ -22,10 +22,11 @@ public:
 	 */
 	bool Save(std::string filename);
 	/**
-	 * Execute SQL statement, returns true if succesful
-	 * Slow operation, statement is compiled everytime this is called
+	 * Execute SQL statement(s), returns true if succesful
+	 * Slow operation, statement(s) is compiled everytime this is called
 	 */
-	bool Execute(std::string & statement);
+	bool Execute(std::string statement);
+
 	Database();
 	virtual ~Database();
 };
