@@ -29,7 +29,7 @@ public:
 	 * Execute SQL statement(s), returns true if succesful
 	 * Slow operation, statement(s) is compiled everytime this is called
 	 */
-	bool Execute(std::string statement);
+	bool Execute(const char * statement);
 
 	Database();
 	virtual ~Database();
