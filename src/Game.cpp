@@ -43,9 +43,9 @@ Game::Game(const SystemPath &path) :
 	m_player->SetFrame(station->GetFrame());
 	m_player->SetDockedWith(station, 0);
 
-	m_factions.Reset(new Factions);
-
 	CreateViews();
+
+	m_factions.Reset(new Factions);
 }
 
 Game::Game(const SystemPath &path, const vector3d &pos) :
