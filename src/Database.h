@@ -7,7 +7,11 @@ class Database {
 protected:
 	sqlite3 *handle;
 	static bool Backup(Database&src,Database&dst);
-public:
+
+	/* Compile Statement and return handle
+	 */
+	sqlite3_stmt * PrepareStatement(const char * statement);
+public:	
 	bool Create();//create in memory database, if database already exists close previous
 	/*
 	 * Open database on disk

@@ -64,10 +64,18 @@ Database::~Database()
 	sqlite3_close(handle);
 }
 
-bool Database::Execute(std::string statement)
+sqlite3_stmt * Database::PrepareStatement(const char * statement)
 {
-	const char * str=statement.c_str();
+	sqlite3_stmt *stmt;
+	if(sqlite3_prepare_v2(handle,statement,-1,&stmt,NULL)!=SQLITE_OK)
+	{
+		return NULL;
+	}
+	return stmt;
+}
 
+bool Database::Execute(const char * str)
+{
 	do{
 		sqlite3_stmt *stmt;
 		if(sqlite3_prepare_v2(handle,str,-1,&stmt,&str)!=SQLITE_OK)
