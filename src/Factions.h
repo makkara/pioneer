@@ -20,6 +20,7 @@ public:
 class Factions:protected Database
 {
 protected:
+	typedef long long starhandle;
 	enum{
 		stmt_insert_starbody,
 		stmt_insert_starlane,
@@ -31,9 +32,10 @@ protected:
 	void AddBodies(long long star,long long parent, const SystemBody*);
 	void AddStar(const SystemPath&path);
 	void PrepareStatements();
-	long long SystemPathToStarHandle(const SystemPath&);
-	long long SystemPathToStarHandle(int x,int y,int z,int s);
+	starhandle SystemPathToStarHandle(const SystemPath&);
+	starhandle SystemPathToStarHandle(int x,int y,int z,int s);
 	static const float MAX_FACTION_DISTANCE;
+
 public:	
 	
 	Factions(std::string filename);
