@@ -52,7 +52,10 @@ static const char * init_db =
 	"body integer primary key,"      //unique handle to body
 	"star integer,"                  //star where this body exists
 	"parent integer,"                //handle to parent of this body
-	"bodyindex integer"              //Pioneer index to this body
+	"bodyindex integer,"             //Pioneer index to this body
+	"type integer,"				     //Body type
+	"metallicity real,"			     //Body metallicity
+	"atmosphere_pressure real"       //Body atmosphere pressure	
 	");"
 	//index to query all bodies inside a star
 	"create index starbodies_star on starbodies (star);"
@@ -90,13 +93,67 @@ void Factions::PrepareStatements()
 {
 	statements.resize(stmt_count);
 
-	statements[stmt_insert_starbody]=PrepareStatement("insert into starbodies values(NULL,:star,:parent,:bodyindex);");
+	statements[stmt_insert_starbody]=PrepareStatement("insert into starbodies values(NULL,:star,:parent,:bodyindex,:type,:metallicity,:atmosphere_pressure);");
 	statements[stmt_insert_starlane]=PrepareStatement("insert into starlanes values(NULL,:source,:destination,:distance2);");
 	statements[stmt_get_nearby_stars]=PrepareStatement("select destination from starlanes where source=:source and distance2 <= :distance2;");
+	statements[stmt_get_nearby_metal_bodies]=PrepareStatement(
+		"select starlanes.destination,starlanes.distance2,starbodies.body,starbodies.metallicity "
+		"from starlanes left join starbodies on starlanes.destination=starbodies.star "
+		"where starlanes.source=:star and starbodies.metallicity is not null and distance2<:distance2 "
+		"union all select :star,0,starbodies.body,starbodies.metallicity "
+		"from starbodies where star=:star and metallicity is not null;");
+	statements[stmt_create_settlement]=PrepareStatement("insert into settlements values(NULL,:star,:body,:orbiting,:population,:population_max,:population_growth);");
+	statements[stmt_star_in_db]=PrepareStatement("select star from starbodies where star=2 limit :star;");
+}
+bool Factions::StarInDB(starhandle star)
+{
+	sqlite3_stmt*stmt=statements[stmt_star_in_db];
+	sqlite3_bind_int64(stmt,1,star);
+	bool rv=false;
+	if(sqlite3_step(stmt)==SQLITE_ROW)
+		rv=true;
+	sqlite3_reset(stmt);
+	return rv;
+}
+long long Factions::CreateSettlement(starhandle star, long long body, long long population)
+{
+	sqlite3_stmt*stmt=statements[stmt_create_settlement];
+	sqlite3_bind_int64(stmt,1,star);
+	sqlite3_bind_int64(stmt,2,body);
+	sqlite3_bind_int(stmt,3,0);//TODO: orbiting
+	sqlite3_bind_int64(stmt,4,population);
+	sqlite3_bind_int64(stmt,5,population*2);//dummy value for max population
+	sqlite3_bind_double(stmt,6,1.00095);//growth in month
+
+	if(sqlite3_step(stmt)!=SQLITE_DONE)
+		{}//TODO: handle error
+
+	sqlite3_reset(stmt);
+	return sqlite3_last_insert_rowid(handle);
 }
 
-void Factions::GetNearbyStars(starhandle star,float maxdistance,std::vector<starhandle>& out)
+std::vector<Factions::metalbody> Factions::GetNearbyMetalBodies(starhandle star,float maxdistance)
 {
+	std::vector<Factions::metalbody> out;
+	sqlite3_stmt*stmt=statements[stmt_get_nearby_metal_bodies];
+	sqlite3_bind_int64(stmt,1,star);
+	sqlite3_bind_double(stmt,2,maxdistance*maxdistance);
+	while(sqlite3_step(stmt)==SQLITE_ROW)
+	{
+		out.push_back(metalbody());
+		metalbody & b=out.back();
+		b.star=sqlite3_column_int64(stmt,0);
+		b.distance2=sqlite3_column_double(stmt,1);
+		b.body=sqlite3_column_int64(stmt,2);
+		b.metallicity=sqlite3_column_double(stmt,3);
+	}
+	sqlite3_reset(stmt);
+	return out;
+}
+
+std::vector<Factions::starhandle> Factions::GetNearbyStars(Factions::starhandle star,float maxdistance)
+{
+	std::vector<starhandle> out;
 	sqlite3_stmt*stmt=statements[stmt_get_nearby_stars];
 	sqlite3_bind_int64(stmt,1,star);
 	sqlite3_bind_double(stmt,2,maxdistance*maxdistance);
@@ -106,14 +163,31 @@ void Factions::GetNearbyStars(starhandle star,float maxdistance,std::vector<star
 		out.push_back(sqlite3_column_int64(stmt, 0));
 	}
 	sqlite3_reset(stmt);
+	return out;
 }
 
 void Factions::AddBodies(starhandle star,starhandle parent,const SystemBody*body)
 {
 	sqlite3_stmt*stmt=statements[stmt_insert_starbody];
 	sqlite3_bind_int64(stmt,1,star);
-	sqlite3_bind_int64(stmt,2,parent?parent:NULL);
+	if(parent)
+		sqlite3_bind_int64(stmt,2,parent);
+	else
+		sqlite3_bind_null(stmt,2);
 	sqlite3_bind_int(stmt,3,body->path.bodyIndex);
+	SystemBody::BodySuperType type=body->GetSuperType();
+	sqlite3_bind_int(stmt,4,type);
+	if(type==SystemBody::SUPERTYPE_ROCKY_PLANET)
+	{
+		Color tc;
+		double density;
+		body->GetAtmosphereFlavor(&tc, &density);
+		sqlite3_bind_double(stmt,5,body->m_metallicity.ToDouble());
+		sqlite3_bind_double(stmt,6,density);
+	}else{
+		sqlite3_bind_null(stmt,5);
+		sqlite3_bind_null(stmt,6);
+	}
 
 	if(sqlite3_step(stmt)!=SQLITE_DONE)
 		{}//TODO: handle error
@@ -178,19 +252,32 @@ Factions::Factions(void)
 
 	PrepareStatements();
 
-	//create some initial data
+	//create some initial data for testing
 	
 	SystemPath path=Pi::game->GetSpace()->GetStarSystem()->GetPath();
 	AddStar(path);
 	//get nearby stars
 	starhandle source=SystemPathToStarHandle(path);
-	std::vector<starhandle> stars;
-	GetNearbyStars(source,10,stars);
+	std::vector<starhandle> stars=GetNearbyStars(source,10);
 	//add all bodies from nearby stars to db
 	std::vector<starhandle>::iterator i;
 	for(i=stars.begin();i!=stars.end();i++)
 	{
 		AddStar(StarHandleToSystemPath(*i));
+	}
+	//create some settlements in metal planets in 8ly radius
+	std::vector<metalbody> bodies=GetNearbyMetalBodies(source,8);
+	std::vector<metalbody>::iterator it;
+	for(it=bodies.begin();it!=bodies.end();it++)
+	{
+		if(it->metallicity>0.4)
+		{//found candidate for settlement
+			long long s=CreateSettlement(it->star, it->body, 1000000);
+			if(!StarInDB(it->star))
+			{
+				AddStar(StarHandleToSystemPath(it->star));
+			}
+		}
 	}
 }
 

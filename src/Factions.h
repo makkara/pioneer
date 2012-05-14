@@ -25,6 +25,9 @@ protected:
 		stmt_insert_starbody,
 		stmt_insert_starlane,
 		stmt_get_nearby_stars,
+		stmt_get_nearby_metal_bodies,
+		stmt_create_settlement,
+		stmt_star_in_db,
 		stmt_count
 	}stmt_handles;
 	std::map<int,Faction*> factions;
@@ -35,7 +38,19 @@ protected:
 	//Add all bodies in star and starlanes to nearby stars to database
 	void AddStar(const SystemPath&path);
 
-	void GetNearbyStars(starhandle star,float maxdistance,std::vector<starhandle>&);
+	bool StarInDB(starhandle star);
+
+	long long CreateSettlement(starhandle star, long long body, long long population);
+
+	std::vector<starhandle> GetNearbyStars(starhandle star,float maxdistance);
+
+	struct metalbody{
+		starhandle star;
+		long long body;
+		double distance2;
+		double metallicity;		
+	};
+	std::vector<metalbody> GetNearbyMetalBodies(starhandle star,float maxdistance);
 
 	//prepare all statements this class will use when database is open
 	void PrepareStatements();
