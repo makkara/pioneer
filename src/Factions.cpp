@@ -58,7 +58,7 @@ static const char * init_db =
 	"create index starbodies_star on starbodies (star);"
 	;
 
-long long Factions::SystemPathToStarHandle(int sectorX,int sectorY,int sectorZ,int systemIndex)
+Factions::starhandle Factions::SystemPathToStarHandle(int sectorX,int sectorY,int sectorZ,int systemIndex)
 {
 	long long rv;
 	rv=((long long)sectorX<<48) |
@@ -67,7 +67,7 @@ long long Factions::SystemPathToStarHandle(int sectorX,int sectorY,int sectorZ,i
 	   ((long long)systemIndex);
 	return rv;
 }
-long long Factions::SystemPathToStarHandle(const SystemPath&p)
+Factions::starhandle Factions::SystemPathToStarHandle(const SystemPath&p)
 {
 	return SystemPathToStarHandle(p.sectorX,p.sectorY,p.sectorZ,p.systemIndex);
 }
@@ -90,7 +90,7 @@ void Factions::AddBodies(long long star,long long parent,const SystemBody*body)
 		{}//TODO: handle error
 
 	sqlite3_reset(stmt);
-	long long id=sqlite3_last_insert_rowid(handle);
+	starhandle id=sqlite3_last_insert_rowid(handle);
 	//add all children also
 	std::vector<SystemBody*>::const_iterator i;
 	for(i=body->children.begin();i!=body->children.end();i++)
@@ -101,11 +101,11 @@ void Factions::AddBodies(long long star,long long parent,const SystemBody*body)
 
 void Factions::AddStar(const SystemPath&path)
 {
-	long long starhandle=SystemPathToStarHandle(path);
+	starhandle source=SystemPathToStarHandle(path);
 	Sector b(path.sectorX,path.sectorY,path.sectorZ);
 	//add all bodies in starsystem to db
 	RefCountedPtr<StarSystem> s=StarSystem::GetCached(path);
-	AddBodies(starhandle, 0, s->rootBody);
+	AddBodies(source, 0, s->rootBody);
 
 	//add starlanes from this star
 	int x=path.sectorX;
@@ -128,7 +128,7 @@ void Factions::AddStar(const SystemPath&path)
 						continue;
 					if(distance<=MAX_FACTION_DISTANCE)
 					{
-						sqlite3_bind_int64(stmt,1,starhandle);
+						sqlite3_bind_int64(stmt,1,source);
 						sqlite3_bind_int64(stmt,2,SystemPathToStarHandle(sx+x,sy+y,sz+z,i));
 						sqlite3_bind_double(stmt,3,distance*distance);
 						sqlite3_step(stmt);
