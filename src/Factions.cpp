@@ -13,23 +13,23 @@ static const char * init_db =
 	"class integer"					 //faction type
 	");"
 	//Population centers in world, eg. Starports and Starbases
-	"create table populations("
-	"population integer primary key,"//unique handle to population
-	"star integer,"                  //star where this population exists
+	"create table settlements("
+	"settlement integer primary key,"//unique handle to settlement
+	"star integer,"                  //star where this settlement exists
 	"body integer,"                  //body handle to starbody table, NOT bodyindex inside star
 	"orbiting integer,"              //0 - on surface of body, 1-orbiting body
-	"population_count integer,"      //population count
+	"population integer,"			 //population count
 	"population_max integer,"        //maximum population
 	"population_growth real"         //population growth multiplier
 	");"
-	//indexes to populations table
-	//index to query populations by star and body
-	"create index populations_star_body on populations (star,body);"
+	//indexes to settlements table
+	//index to query settlements by star and body
+	"create index settlements_star_body on settlements (star,body);"
 
 	//faction presences inside population
 	"create table factionpresences("
 	"factionpresence integer primary key,"
-	"population integer,"		     //handle to population
+	"settlement integer,"		     //handle to population
 	"faction integer,"				 //handle to owning faction
 	"weight real"					 //weight of this presence when calculating population
 	");"
@@ -58,13 +58,28 @@ static const char * init_db =
 	"create index starbodies_star on starbodies (star);"
 	;
 
+SystemPath Factions::StarHandleToSystemPath(starhandle handle)
+{
+	short x=(handle>>48)&0xffff;
+	short y=(handle>>32)&0xffff;
+	short z=(handle>>16)&0xffff;
+	
+	SystemPath rv(
+		x,
+		y,
+		z,
+		(handle)&0xffff
+		);
+	return rv;
+}
+
 Factions::starhandle Factions::SystemPathToStarHandle(int sectorX,int sectorY,int sectorZ,int systemIndex)
 {
 	long long rv;
-	rv=((long long)sectorX<<48) |
-	   ((long long)sectorY<<32) |
-	   ((long long)sectorZ<<16) |
-	   ((long long)systemIndex);
+	rv=((starhandle)sectorX&0xffff)<<48;
+	rv|=((starhandle)sectorY&0xffff)<<32;
+	rv|=((starhandle)sectorZ&0xffff)<<16;
+	rv|=((starhandle)systemIndex&0xffff);
 	return rv;
 }
 Factions::starhandle Factions::SystemPathToStarHandle(const SystemPath&p)
@@ -77,9 +92,23 @@ void Factions::PrepareStatements()
 
 	statements[stmt_insert_starbody]=PrepareStatement("insert into starbodies values(NULL,:star,:parent,:bodyindex);");
 	statements[stmt_insert_starlane]=PrepareStatement("insert into starlanes values(NULL,:source,:destination,:distance2);");
+	statements[stmt_get_nearby_stars]=PrepareStatement("select destination from starlanes where source=:source and distance2 <= :distance2;");
 }
 
-void Factions::AddBodies(long long star,long long parent,const SystemBody*body)
+void Factions::GetNearbyStars(starhandle star,float maxdistance,std::vector<starhandle>& out)
+{
+	sqlite3_stmt*stmt=statements[stmt_get_nearby_stars];
+	sqlite3_bind_int64(stmt,1,star);
+	sqlite3_bind_double(stmt,2,maxdistance*maxdistance);
+	out.resize(0);
+	while(sqlite3_step(stmt)==SQLITE_ROW)
+	{
+		out.push_back(sqlite3_column_int64(stmt, 0));
+	}
+	sqlite3_reset(stmt);
+}
+
+void Factions::AddBodies(starhandle star,starhandle parent,const SystemBody*body)
 {
 	sqlite3_stmt*stmt=statements[stmt_insert_starbody];
 	sqlite3_bind_int64(stmt,1,star);
@@ -151,8 +180,18 @@ Factions::Factions(void)
 
 	//create some initial data
 	
-	AddStar(Pi::game->GetSpace()->GetStarSystem()->GetPath());
-	
+	SystemPath path=Pi::game->GetSpace()->GetStarSystem()->GetPath();
+	AddStar(path);
+	//get nearby stars
+	starhandle source=SystemPathToStarHandle(path);
+	std::vector<starhandle> stars;
+	GetNearbyStars(source,10,stars);
+	//add all bodies from nearby stars to db
+	std::vector<starhandle>::iterator i;
+	for(i=stars.begin();i!=stars.end();i++)
+	{
+		AddStar(StarHandleToSystemPath(*i));
+	}
 }
 
 Factions::Factions(std::string filename)
