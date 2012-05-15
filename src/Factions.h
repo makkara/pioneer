@@ -9,17 +9,17 @@
 
 class SystemBody;
 
-class Faction
-{
-public:
-	Faction();
-	virtual ~Faction(void);
-	void update(int handle);
-};
-
 class Factions:protected Database
 {
 protected:
+	//some example presence types
+	enum FactionPresenceType
+	{
+		TYPE_TAX,           //owner of settlement
+		TYPE_SHIPYARD,      //settlement contains shipyard
+		TYPE_INDUSTRY_FOOD, //industry type food 
+	};
+
 	typedef long long starhandle;
 	enum{
 		stmt_insert_starbody,
@@ -28,9 +28,11 @@ protected:
 		stmt_get_nearby_metal_bodies,
 		stmt_create_settlement,
 		stmt_star_in_db,
+		stmt_create_faction,
+		stmt_create_faction_presence,
 		stmt_count
 	}stmt_handles;
-	std::map<int,Faction*> factions;
+
 	std::vector<sqlite3_stmt *> statements;
 
 	//Add systembody and all children in database
@@ -41,6 +43,10 @@ protected:
 	bool StarInDB(starhandle star);
 
 	long long CreateSettlement(starhandle star, long long body, long long population);
+
+	long long CreateFaction(std::string name);
+
+	void CreateFactionPresence(long long settlement, long long faction, int type,double strength);
 
 	std::vector<starhandle> GetNearbyStars(starhandle star,float maxdistance);
 

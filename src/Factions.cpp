@@ -10,7 +10,6 @@ static const char * init_db =
 	"create table factions ("
 	"faction integer primary key,"
 	"name text"
-	"class integer"					 //faction type
 	");"
 	//Population centers in world, eg. Starports and Starbases
 	"create table settlements("
@@ -29,13 +28,14 @@ static const char * init_db =
 	//faction presences inside population
 	"create table factionpresences("
 	"factionpresence integer primary key,"
-	"settlement integer,"		     //handle to population
+	"settlement integer,"		     //handle to settlement
 	"faction integer,"				 //handle to owning faction
-	"weight real"					 //weight of this presence when calculating population
+	"class integer,"				 //type of precense faction has on this settlement
+	"strength real"					 //weight of this presence when calculating population
 	");"
 	//indexes to presence table
-	"create index factionpresences_population on factionpresences(population);"
-	"create index factionpresences_faction_population on factionpresences(faction,population);"
+	"create index factionpresences_settlement_class on factionpresences(settlement);"
+	"create index factionpresences_faction_settlement on factionpresences(faction,settlement);"
 
 	//represents path from one star to another, helps searching nearby stars
 	"create table starlanes("
@@ -104,7 +104,32 @@ void Factions::PrepareStatements()
 		"from starbodies where star=:star and metallicity is not null;");
 	statements[stmt_create_settlement]=PrepareStatement("insert into settlements values(NULL,:star,:body,:orbiting,:population,:population_max,:population_growth);");
 	statements[stmt_star_in_db]=PrepareStatement("select star from starbodies where star=2 limit :star;");
+	statements[stmt_create_faction]=PrepareStatement("insert into factions values(NULL,:name);");
+	statements[stmt_create_faction_presence]=PrepareStatement("insert into factionpresences values(NULL,:settlement,:faction,:class,:strength);");
 }
+
+void Factions::CreateFactionPresence(long long settlement, long long faction, int type,double strength)
+{
+	sqlite3_stmt*stmt=statements[stmt_create_faction_presence];
+	sqlite3_bind_int64(stmt,1,settlement);
+	sqlite3_bind_int64(stmt,2,faction);
+	sqlite3_bind_int(stmt,3,type);
+	sqlite3_bind_double(stmt,4,strength);
+	sqlite3_step(stmt);
+	sqlite3_reset(stmt);
+}
+
+long long Factions::CreateFaction(std::string name)
+{
+	sqlite3_stmt*stmt=statements[stmt_create_faction];
+	sqlite3_bind_text(stmt,1,name.c_str(),-1,SQLITE_TRANSIENT);
+	if(sqlite3_step(stmt)!=SQLITE_DONE)
+		{}//TODO: handle error
+
+	sqlite3_reset(stmt);
+	return sqlite3_last_insert_rowid(handle);
+}
+
 bool Factions::StarInDB(starhandle star)
 {
 	sqlite3_stmt*stmt=statements[stmt_star_in_db];
@@ -265,6 +290,14 @@ Factions::Factions(void)
 	{
 		AddStar(StarHandleToSystemPath(*i));
 	}
+
+	long long faction=CreateFaction("The Federation");
+	//Couple of examples of a company
+	long long burger=CreateFaction("Monolith Burger");
+
+	long long company=CreateFaction("Corellian Engineering Corporation");
+
+
 	//create some settlements in metal planets in 8ly radius
 	std::vector<metalbody> bodies=GetNearbyMetalBodies(source,8);
 	std::vector<metalbody>::iterator it;
@@ -273,10 +306,17 @@ Factions::Factions(void)
 		if(it->metallicity>0.4)
 		{//found candidate for settlement
 			long long s=CreateSettlement(it->star, it->body, 1000000);
+			if(s==14)
+				CreateFactionPresence(s,company,FactionPresenceType::TYPE_SHIPYARD,1.0);
+			if(it->distance2==0)
+			{
+				CreateFactionPresence(s,burger,FactionPresenceType::TYPE_INDUSTRY_FOOD,0.1);
+			}
 			if(!StarInDB(it->star))
 			{
 				AddStar(StarHandleToSystemPath(it->star));
 			}
+			CreateFactionPresence(s,faction,FactionPresenceType::TYPE_TAX,1.0);
 		}
 	}
 }
