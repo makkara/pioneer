@@ -307,16 +307,16 @@ Factions::Factions(void)
 		{//found candidate for settlement
 			long long s=CreateSettlement(it->star, it->body, 1000000);
 			if(s==14)
-				CreateFactionPresence(s,company,FactionPresenceType::TYPE_SHIPYARD,1.0);
+				CreateFactionPresence(s,company,TYPE_SHIPYARD,1.0);
 			if(it->distance2==0)
 			{
-				CreateFactionPresence(s,burger,FactionPresenceType::TYPE_INDUSTRY_FOOD,0.1);
+				CreateFactionPresence(s,burger,TYPE_INDUSTRY_FOOD,0.1);
 			}
 			if(!StarInDB(it->star))
 			{
 				AddStar(StarHandleToSystemPath(it->star));
 			}
-			CreateFactionPresence(s,faction,FactionPresenceType::TYPE_TAX,1.0);
+			CreateFactionPresence(s,faction,TYPE_TAX,1.0);
 		}
 	}
 }
