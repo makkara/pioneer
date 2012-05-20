@@ -33,7 +33,7 @@ protected:
 		stmt_count
 	}stmt_handles;
 
-	std::vector<sqlite3_stmt *> statements;
+	std::vector<Statement> statements;
 
 	//Add systembody and all children in database
 	void AddBodies(starhandle star,starhandle parent, const SystemBody*);
