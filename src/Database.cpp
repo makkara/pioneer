@@ -64,7 +64,7 @@ Database::~Database()
 	sqlite3_close(handle);
 }
 
-sqlite3_stmt * Database::PrepareStatement(const char * statement)
+Database::Statement Database::PrepareStatement(const char * statement)
 {
 	sqlite3_stmt *stmt;
 	if(sqlite3_prepare_v2(handle,statement,-1,&stmt,NULL)!=SQLITE_OK)
