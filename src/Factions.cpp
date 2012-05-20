@@ -110,114 +110,106 @@ void Factions::PrepareStatements()
 
 void Factions::CreateFactionPresence(long long settlement, long long faction, int type,double strength)
 {
-	sqlite3_stmt*stmt=statements[stmt_create_faction_presence];
-	sqlite3_bind_int64(stmt,1,settlement);
-	sqlite3_bind_int64(stmt,2,faction);
-	sqlite3_bind_int(stmt,3,type);
-	sqlite3_bind_double(stmt,4,strength);
-	sqlite3_step(stmt);
-	sqlite3_reset(stmt);
+	Database::Statement stmt=statements[stmt_create_faction_presence];
+	stmt.Bind(1,settlement);
+	stmt.Bind(2,faction);
+	stmt.Bind(3,type);
+	stmt.Bind(4,strength);
+	stmt.Run();
 }
 
 long long Factions::CreateFaction(std::string name)
 {
-	sqlite3_stmt*stmt=statements[stmt_create_faction];
+	Database::Statement stmt=statements[stmt_create_faction];
 	sqlite3_bind_text(stmt,1,name.c_str(),-1,SQLITE_TRANSIENT);
-	if(sqlite3_step(stmt)!=SQLITE_DONE)
-		{}//TODO: handle error
+	stmt.Run();
 
-	sqlite3_reset(stmt);
 	return sqlite3_last_insert_rowid(handle);
 }
 
 bool Factions::StarInDB(starhandle star)
 {
-	sqlite3_stmt*stmt=statements[stmt_star_in_db];
-	sqlite3_bind_int64(stmt,1,star);
+	Database::Statement stmt=statements[stmt_star_in_db];
+	stmt.Bind(1,star);
 	bool rv=false;
-	if(sqlite3_step(stmt)==SQLITE_ROW)
+	if(stmt.NextRow())
 		rv=true;
-	sqlite3_reset(stmt);
+
 	return rv;
 }
 long long Factions::CreateSettlement(starhandle star, long long body, long long population)
 {
-	sqlite3_stmt*stmt=statements[stmt_create_settlement];
-	sqlite3_bind_int64(stmt,1,star);
-	sqlite3_bind_int64(stmt,2,body);
-	sqlite3_bind_int(stmt,3,0);//TODO: orbiting
-	sqlite3_bind_int64(stmt,4,population);
-	sqlite3_bind_int64(stmt,5,population*2);//dummy value for max population
-	sqlite3_bind_double(stmt,6,1.00095);//growth in month
+	Database::Statement stmt=statements[stmt_create_settlement];
+	stmt.Bind(1,star);
+	stmt.Bind(2,body);
+	stmt.Bind(3,0);//TODO: orbiting
+	stmt.Bind(4,population);
+	stmt.Bind(5,population*2);//dummy value for max population
+	stmt.Bind(6,1.00095);//growth in month
+	stmt.Run();
 
-	if(sqlite3_step(stmt)!=SQLITE_DONE)
-		{}//TODO: handle error
-
-	sqlite3_reset(stmt);
 	return sqlite3_last_insert_rowid(handle);
 }
 
 std::vector<Factions::metalbody> Factions::GetNearbyMetalBodies(starhandle star,float maxdistance)
 {
 	std::vector<Factions::metalbody> out;
-	sqlite3_stmt*stmt=statements[stmt_get_nearby_metal_bodies];
-	sqlite3_bind_int64(stmt,1,star);
-	sqlite3_bind_double(stmt,2,maxdistance*maxdistance);
-	while(sqlite3_step(stmt)==SQLITE_ROW)
+	Database::Statement stmt=statements[stmt_get_nearby_metal_bodies];
+	stmt.Bind(1,star);
+	stmt.Bind(2,maxdistance*maxdistance);
+	while(stmt.NextRow())
 	{
 		out.push_back(metalbody());
 		metalbody & b=out.back();
-		b.star=sqlite3_column_int64(stmt,0);
-		b.distance2=sqlite3_column_double(stmt,1);
-		b.body=sqlite3_column_int64(stmt,2);
-		b.metallicity=sqlite3_column_double(stmt,3);
+		b.star=stmt.Get_int64(0);
+		b.distance2=stmt.Get_double(1);
+		b.body=stmt.Get_int64(2);
+		b.metallicity=stmt.Get_double(3);
 	}
-	sqlite3_reset(stmt);
+
 	return out;
 }
 
 std::vector<Factions::starhandle> Factions::GetNearbyStars(Factions::starhandle star,float maxdistance)
 {
 	std::vector<starhandle> out;
-	sqlite3_stmt*stmt=statements[stmt_get_nearby_stars];
-	sqlite3_bind_int64(stmt,1,star);
-	sqlite3_bind_double(stmt,2,maxdistance*maxdistance);
+	Database::Statement stmt=statements[stmt_get_nearby_stars];
+	stmt.Bind(1,star);
+	stmt.Bind(2,maxdistance*maxdistance);
 	out.resize(0);
-	while(sqlite3_step(stmt)==SQLITE_ROW)
+	while(stmt.NextRow())
 	{
-		out.push_back(sqlite3_column_int64(stmt, 0));
+		out.push_back(stmt.Get_int64(0));
 	}
-	sqlite3_reset(stmt);
+
 	return out;
 }
 
 void Factions::AddBodies(starhandle star,starhandle parent,const SystemBody*body)
 {
-	sqlite3_stmt*stmt=statements[stmt_insert_starbody];
-	sqlite3_bind_int64(stmt,1,star);
+	Database::Statement stmt=statements[stmt_insert_starbody];
+	stmt.Bind(1,star);
 	if(parent)
-		sqlite3_bind_int64(stmt,2,parent);
+		stmt.Bind(2,parent);
 	else
-		sqlite3_bind_null(stmt,2);
-	sqlite3_bind_int(stmt,3,body->path.bodyIndex);
+		stmt.BindNull(2);
+	stmt.Bind(3,body->path.bodyIndex);
 	SystemBody::BodySuperType type=body->GetSuperType();
-	sqlite3_bind_int(stmt,4,type);
+	stmt.Bind(4,type);
 	if(type==SystemBody::SUPERTYPE_ROCKY_PLANET)
 	{
 		Color tc;
 		double density;
 		body->GetAtmosphereFlavor(&tc, &density);
-		sqlite3_bind_double(stmt,5,body->m_metallicity.ToDouble());
-		sqlite3_bind_double(stmt,6,density);
+		stmt.Bind(5,body->m_metallicity.ToDouble());
+		stmt.Bind(6,density);
 	}else{
-		sqlite3_bind_null(stmt,5);
-		sqlite3_bind_null(stmt,6);
+		stmt.BindNull(5);
+		stmt.BindNull(6);
 	}
 
-	if(sqlite3_step(stmt)!=SQLITE_DONE)
-		{}//TODO: handle error
+	stmt.Run();
 
-	sqlite3_reset(stmt);
 	starhandle id=sqlite3_last_insert_rowid(handle);
 	//add all children also
 	std::vector<SystemBody*>::const_iterator i;
