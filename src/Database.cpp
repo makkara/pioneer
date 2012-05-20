@@ -99,3 +99,25 @@ bool Database::Execute(const char * str)
 
 	return true;
 }
+
+Database::Statement& Database::Statement::operator=(const Statement&s)
+{
+	statement=s.statement;
+	return *this;
+}
+
+Database::Statement::Statement()
+{
+	statement=NULL;
+}
+
+Database::Statement::Statement(sqlite3_stmt*stmt)
+{
+	statement=stmt;
+}
+
+Database::Statement::Statement(const Statement &s)
+{
+	statement=s.statement;
+}
+
