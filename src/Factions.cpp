@@ -232,7 +232,7 @@ void Factions::AddStar(const SystemPath&path)
 	int y=path.sectorY;
 	int z=path.sectorZ;
 
-	sqlite3_stmt*stmt=statements[stmt_insert_starlane];
+	Database::Statement stmt=statements[stmt_insert_starlane];
 	//loop at 16ly radius around sector
 	int r=MAX_FACTION_DISTANCE/Sector::SIZE;
 	for (int sx = -r; sx <= r; sx++) {
@@ -248,10 +248,10 @@ void Factions::AddStar(const SystemPath&path)
 						continue;
 					if(distance<=MAX_FACTION_DISTANCE)
 					{
-						sqlite3_bind_int64(stmt,1,source);
-						sqlite3_bind_int64(stmt,2,SystemPathToStarHandle(sx+x,sy+y,sz+z,i));
-						sqlite3_bind_double(stmt,3,distance*distance);
-						sqlite3_step(stmt);
+						stmt.Bind(1,source);
+						stmt.Bind(2,SystemPathToStarHandle(sx+x,sy+y,sz+z,i));
+						stmt.Bind(3,distance*distance);
+						stmt.Run();
 						sqlite3_reset(stmt);
 					}
 				}
@@ -332,11 +332,11 @@ void Factions::Save(std::string filename)
 
 Factions::~Factions(void)
 {
-	//Finalize all precompiled statements
-	std::vector<sqlite3_stmt*>::iterator i;
-	for(i=statements.begin();i!=statements.end();i++)
+	std::vector<Database::Statement>::iterator it;
+	
+	for(it=statements.begin();it!=statements.end();it++)
 	{
-		if(*i)
-			sqlite3_finalize(*i);
+		sqlite3_finalize(*it);
+		it->statement=0;
 	}
 }
