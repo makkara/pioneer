@@ -27,6 +27,7 @@ public:
 	{
 		public:
 			sqlite3_stmt * statement;
+			int current_bind;
 
 			Statement();
 			Statement(sqlite3_stmt*stmt);
@@ -36,11 +37,18 @@ public:
 			void RaiseException(){throw Exception(sqlite3_errmsg(sqlite3_db_handle(statement)));};
 
 			//Bind data to statement wrappers
-			void Bind(int position, int32_t value){if(sqlite3_bind_int(statement,position,value)!=SQLITE_OK)RaiseException();}
-			void Bind(int position, int64_t value){if(sqlite3_bind_int64(statement,position,value)!=SQLITE_OK)RaiseException();}
-			void Bind(int position, uint32_t value){if(sqlite3_bind_int64(statement,position,value)!=SQLITE_OK)RaiseException();}//unsigned 32bit is converted to 64bit for sorting to work correctly
-			void Bind(int position, double value){if(sqlite3_bind_double(statement,position,value)!=SQLITE_OK)RaiseException();}
-			void BindNull(int position){if(sqlite3_bind_null(statement,position)!=SQLITE_OK)RaiseException();}
+			//use position
+			Statement& Bind(int position, int32_t value){if(sqlite3_bind_int(statement,current_bind=position,value)!=SQLITE_OK)RaiseException();return *this;}
+			Statement& Bind(int position, int64_t value){if(sqlite3_bind_int64(statement,current_bind=position,value)!=SQLITE_OK)RaiseException();return *this;}
+			Statement& Bind(int position, uint32_t value){if(sqlite3_bind_int64(statement,current_bind=position,value)!=SQLITE_OK)RaiseException();return *this;}//unsigned 32bit is converted to 64bit for sorting to work correctly
+			Statement& Bind(int position, double value){if(sqlite3_bind_double(statement,current_bind=position,value)!=SQLITE_OK)RaiseException();return *this;}
+			Statement& BindNull(int position){if(sqlite3_bind_null(statement,current_bind=position)!=SQLITE_OK)RaiseException();return *this;}
+			//increase position automatically
+			Statement& Bind(int32_t value){if(sqlite3_bind_int(statement,++current_bind,value)!=SQLITE_OK)RaiseException();return *this;}
+			Statement& Bind(int64_t value){if(sqlite3_bind_int64(statement,++current_bind,value)!=SQLITE_OK)RaiseException();return *this;}
+			Statement& Bind(uint32_t value){if(sqlite3_bind_int64(statement,++current_bind,value)!=SQLITE_OK)RaiseException();return *this;}//unsigned 32bit is converted to 64bit for sorting to work correctly
+			Statement& Bind(double value){if(sqlite3_bind_double(statement,++current_bind,value)!=SQLITE_OK)RaiseException();return *this;}
+			Statement& BindNull(){if(sqlite3_bind_null(statement,++current_bind)!=SQLITE_OK)RaiseException();return *this;}
 
 			//get row data
 			int64_t Get_int64(int column){return sqlite3_column_int64(statement, column);}
@@ -49,6 +57,9 @@ public:
 
 			//Step prepared statement, return true if row is returned
 			bool Step(){int rv=sqlite3_step(statement);if(rv!=SQLITE_DONE && rv!=SQLITE_ROW)RaiseException();return (rv==SQLITE_ROW);};
+
+			//Reset statement, also resets next binding index
+			void Reset();
 
 			//convert to sqlite3 statement handle
 			operator sqlite3_stmt*(){return statement;}

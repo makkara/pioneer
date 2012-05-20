@@ -98,31 +98,39 @@ void Database::Execute(const char * str)
 
 Database::Statement& Database::Statement::operator=(const Statement&s)
 {
+	current_bind=s.current_bind;
 	statement=s.statement;
 	return *this;
 }
 
 Database::Statement::Statement()
 {
+	current_bind=0;
 	statement=NULL;
 }
-
 Database::Statement::Statement(sqlite3_stmt*stmt)
 {
+	current_bind=0;
 	statement=stmt;
 	if(statement)
 	{
-		if(sqlite3_reset(statement)!=SQLITE_OK)
-			RaiseException();
+		Reset();
 	}
 }
 
 Database::Statement::Statement(const Statement &s)
 {
+	current_bind=0;
 	statement=s.statement;
 	if(statement)
 	{
-		if(sqlite3_reset(statement)!=SQLITE_OK)
-			RaiseException();
+		Reset();
 	}
+}
+
+void Database::Statement::Reset()
+{
+	current_bind=0;
+	if(sqlite3_reset(statement)!=SQLITE_OK)
+		RaiseException();
 }

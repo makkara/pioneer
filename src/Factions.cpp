@@ -111,10 +111,7 @@ void Factions::PrepareStatements()
 void Factions::CreateFactionPresence(long long settlement, long long faction, int type,double strength)
 {
 	Database::Statement stmt=statements[stmt_create_faction_presence];
-	stmt.Bind(1,settlement);
-	stmt.Bind(2,faction);
-	stmt.Bind(3,type);
-	stmt.Bind(4,strength);
+	stmt.Bind(settlement).Bind(faction).Bind(type).Bind(strength);
 	stmt.Step();
 }
 
@@ -130,7 +127,7 @@ long long Factions::CreateFaction(std::string name)
 bool Factions::StarInDB(starhandle star)
 {
 	Database::Statement stmt=statements[stmt_star_in_db];
-	stmt.Bind(1,star);
+	stmt.Bind(star);
 	bool rv=false;
 	if(stmt.Step())
 		rv=true;
@@ -140,12 +137,12 @@ bool Factions::StarInDB(starhandle star)
 long long Factions::CreateSettlement(starhandle star, long long body, long long population)
 {
 	Database::Statement stmt=statements[stmt_create_settlement];
-	stmt.Bind(1,star);
-	stmt.Bind(2,body);
-	stmt.Bind(3,0);//TODO: orbiting
-	stmt.Bind(4,population);
-	stmt.Bind(5,population*2);//dummy value for max population
-	stmt.Bind(6,1.00095);//growth in month
+	stmt.Bind(star);
+	stmt.Bind(body);
+	stmt.Bind(0);//TODO: orbiting
+	stmt.Bind(population);
+	stmt.Bind(population*2);//dummy value for max population
+	stmt.Bind(1.00095);//growth in month
 	stmt.Step();
 
 	return sqlite3_last_insert_rowid(handle);
@@ -155,8 +152,8 @@ std::vector<Factions::metalbody> Factions::GetNearbyMetalBodies(starhandle star,
 {
 	std::vector<Factions::metalbody> out;
 	Database::Statement stmt=statements[stmt_get_nearby_metal_bodies];
-	stmt.Bind(1,star);
-	stmt.Bind(2,maxdistance*maxdistance);
+	stmt.Bind(star);
+	stmt.Bind(maxdistance*maxdistance);
 	while(stmt.Step())
 	{
 		out.push_back(metalbody());
@@ -174,8 +171,8 @@ std::vector<Factions::starhandle> Factions::GetNearbyStars(Factions::starhandle 
 {
 	std::vector<starhandle> out;
 	Database::Statement stmt=statements[stmt_get_nearby_stars];
-	stmt.Bind(1,star);
-	stmt.Bind(2,maxdistance*maxdistance);
+	stmt.Bind(star);
+	stmt.Bind(maxdistance*maxdistance);
 	out.resize(0);
 	while(stmt.Step())
 	{
@@ -188,24 +185,24 @@ std::vector<Factions::starhandle> Factions::GetNearbyStars(Factions::starhandle 
 void Factions::AddBodies(starhandle star,starhandle parent,const SystemBody*body)
 {
 	Database::Statement stmt=statements[stmt_insert_starbody];
-	stmt.Bind(1,star);
+	stmt.Bind(star);
 	if(parent)
-		stmt.Bind(2,parent);
+		stmt.Bind(parent);
 	else
-		stmt.BindNull(2);
-	stmt.Bind(3,body->path.bodyIndex);
+		stmt.BindNull();
+	stmt.Bind(body->path.bodyIndex);
 	SystemBody::BodySuperType type=body->GetSuperType();
-	stmt.Bind(4,type);
+	stmt.Bind(type);
 	if(type==SystemBody::SUPERTYPE_ROCKY_PLANET)
 	{
 		Color tc;
 		double density;
 		body->GetAtmosphereFlavor(&tc, &density);
-		stmt.Bind(5,body->m_metallicity.ToDouble());
-		stmt.Bind(6,density);
+		stmt.Bind(body->m_metallicity.ToDouble());
+		stmt.Bind(density);
 	}else{
-		stmt.BindNull(5);
-		stmt.BindNull(6);
+		stmt.BindNull();
+		stmt.BindNull();
 	}
 
 	stmt.Step();
@@ -248,11 +245,11 @@ void Factions::AddStar(const SystemPath&path)
 						continue;
 					if(distance<=MAX_FACTION_DISTANCE)
 					{
-						stmt.Bind(1,source);
-						stmt.Bind(2,SystemPathToStarHandle(sx+x,sy+y,sz+z,i));
-						stmt.Bind(3,distance*distance);
+						stmt.Bind(source);
+						stmt.Bind(SystemPathToStarHandle(sx+x,sy+y,sz+z,i));
+						stmt.Bind(distance*distance);
 						stmt.Step();
-						sqlite3_reset(stmt);
+						stmt.Reset();
 					}
 				}
 			}
