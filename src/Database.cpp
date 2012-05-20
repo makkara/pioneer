@@ -5,58 +5,56 @@ Database::Database(){
 	handle=NULL;	
 }
 
-bool Database::Open(std::string filename)
+void Database::Open(std::string filename)
 {
 	sqlite3_close(handle);
 
 	if(sqlite3_open(filename.c_str(),&handle)!=SQLITE_OK)
 	{
+		Exception e(sqlite3_errmsg(handle));
 		sqlite3_close(handle);
-		return false;
+		throw e;
 	}
-	return true;
 }
 
-bool Database::Create()
+void Database::Create()
 {
-	return Open(":memory:");
+	Open(":memory:");
+	
+	sqlite3_extended_result_codes(handle, 1);
 }
 
-bool Database::Load(std::string filename)
+void Database::Load(std::string filename)
 {
 	Database f;
-	if(!f.Open(filename))return false;	
+	f.Open(filename);	
 	
 	//clear existing data
 	Create();
 
-	if(!Backup(f,*this))return false;
-
-	return true;
+	Backup(f,*this);
 }
 
-bool Database::Save(std::string filename)
+void Database::Save(std::string filename)
 {
 	Database f;
-	if(!f.Open(filename))return false;
-	if(!Backup(*this,f))return false;
-
-	return true;	
+	f.Open(filename);
+	Backup(*this,f);
 }
 
-bool Database::Backup(Database&src,Database&dst)
+void Database::Backup(Database&src,Database&dst)
 {
-	bool rv=true;
-
 	sqlite3_backup* bu=sqlite3_backup_init(dst.handle,"main",src.handle,"main");
-	if(bu==NULL)return false;
+	if(bu==NULL){throw Exception("sqlite3_backup_init_fail");};
 
 	if(sqlite3_backup_step(bu,-1)!=SQLITE_DONE)
-		rv=false;
+	{
+		sqlite3_backup_finish(bu);
+		throw Exception("sqlite3_backup_step_fail");
+	};
 
 	sqlite3_backup_finish(bu);
 
-	return rv;
 }
 
 Database::~Database()
@@ -69,18 +67,18 @@ Database::Statement Database::PrepareStatement(const char * statement)
 	sqlite3_stmt *stmt;
 	if(sqlite3_prepare_v2(handle,statement,-1,&stmt,NULL)!=SQLITE_OK)
 	{
-		return NULL;
+		RaiseException();
 	}
 	return stmt;
 }
 
-bool Database::Execute(const char * str)
+void Database::Execute(const char * str)
 {
 	do{
 		sqlite3_stmt *stmt;
 		if(sqlite3_prepare_v2(handle,str,-1,&stmt,&str)!=SQLITE_OK)
 		{
-			return false;
+			RaiseException();
 		}
 
 		int rv;
@@ -89,15 +87,13 @@ bool Database::Execute(const char * str)
 			if(rv!=SQLITE_ROW)//if something else than row returned happened -> fail
 			{
 				sqlite3_finalize(stmt);
-				return false;
+				RaiseException();
 			}
 		}
 
 		sqlite3_finalize(stmt);
 
 	}while(*str);//loop until str is set to end of string
-
-	return true;
 }
 
 Database::Statement& Database::Statement::operator=(const Statement&s)
@@ -114,10 +110,19 @@ Database::Statement::Statement()
 Database::Statement::Statement(sqlite3_stmt*stmt)
 {
 	statement=stmt;
+	if(statement)
+	{
+		if(sqlite3_reset(statement)!=SQLITE_OK)
+			RaiseException();
+	}
 }
 
 Database::Statement::Statement(const Statement &s)
 {
 	statement=s.statement;
+	if(statement)
+	{
+		if(sqlite3_reset(statement)!=SQLITE_OK)
+			RaiseException();
+	}
 }
-

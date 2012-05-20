@@ -115,14 +115,14 @@ void Factions::CreateFactionPresence(long long settlement, long long faction, in
 	stmt.Bind(2,faction);
 	stmt.Bind(3,type);
 	stmt.Bind(4,strength);
-	stmt.Run();
+	stmt.Step();
 }
 
 long long Factions::CreateFaction(std::string name)
 {
 	Database::Statement stmt=statements[stmt_create_faction];
 	sqlite3_bind_text(stmt,1,name.c_str(),-1,SQLITE_TRANSIENT);
-	stmt.Run();
+	stmt.Step();
 
 	return sqlite3_last_insert_rowid(handle);
 }
@@ -132,7 +132,7 @@ bool Factions::StarInDB(starhandle star)
 	Database::Statement stmt=statements[stmt_star_in_db];
 	stmt.Bind(1,star);
 	bool rv=false;
-	if(stmt.NextRow())
+	if(stmt.Step())
 		rv=true;
 
 	return rv;
@@ -146,7 +146,7 @@ long long Factions::CreateSettlement(starhandle star, long long body, long long 
 	stmt.Bind(4,population);
 	stmt.Bind(5,population*2);//dummy value for max population
 	stmt.Bind(6,1.00095);//growth in month
-	stmt.Run();
+	stmt.Step();
 
 	return sqlite3_last_insert_rowid(handle);
 }
@@ -157,7 +157,7 @@ std::vector<Factions::metalbody> Factions::GetNearbyMetalBodies(starhandle star,
 	Database::Statement stmt=statements[stmt_get_nearby_metal_bodies];
 	stmt.Bind(1,star);
 	stmt.Bind(2,maxdistance*maxdistance);
-	while(stmt.NextRow())
+	while(stmt.Step())
 	{
 		out.push_back(metalbody());
 		metalbody & b=out.back();
@@ -177,7 +177,7 @@ std::vector<Factions::starhandle> Factions::GetNearbyStars(Factions::starhandle 
 	stmt.Bind(1,star);
 	stmt.Bind(2,maxdistance*maxdistance);
 	out.resize(0);
-	while(stmt.NextRow())
+	while(stmt.Step())
 	{
 		out.push_back(stmt.Get_int64(0));
 	}
@@ -208,7 +208,7 @@ void Factions::AddBodies(starhandle star,starhandle parent,const SystemBody*body
 		stmt.BindNull(6);
 	}
 
-	stmt.Run();
+	stmt.Step();
 
 	starhandle id=sqlite3_last_insert_rowid(handle);
 	//add all children also
@@ -251,7 +251,7 @@ void Factions::AddStar(const SystemPath&path)
 						stmt.Bind(1,source);
 						stmt.Bind(2,SystemPathToStarHandle(sx+x,sy+y,sz+z,i));
 						stmt.Bind(3,distance*distance);
-						stmt.Run();
+						stmt.Step();
 						sqlite3_reset(stmt);
 					}
 				}
@@ -315,17 +315,22 @@ Factions::Factions(void)
 
 Factions::Factions(std::string filename)
 {
-	if(!Load(filename))
+	try{
+		Load(filename);
+	
+		PrepareStatements();
+	}catch(const Database::Exception &)
 	{
 		throw CouldNotOpenFileException();
 	}
-	PrepareStatements();
+	
 }
 
 void Factions::Save(std::string filename)
 {
-	if(!Database::Save(filename))
-	{
+	try{
+		Database::Save(filename);
+	}catch (const Database::Exception &){
 		throw CouldNotWriteToFileException();
 	}
 }
