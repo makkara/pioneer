@@ -4,7 +4,7 @@
 Database::Database(std::string filename)
 {
 	handle=NULL;
-	Load(filename);
+	Open(filename);
 }
 
 Database::Database(){
@@ -139,4 +139,55 @@ void Database::Statement::Reset()
 	current_bind=0;
 	if(sqlite3_reset(statement)!=SQLITE_OK)
 		RaiseException();
+}
+
+
+KeyValueStore::KeyValueStore(Database &_db,std::string table_name):db(_db),name(table_name)
+{
+	std::string cmd;
+	cmd= cmd + "create table if not exists kv_"+name+"(key blob primary key, value blob);";
+	db.Execute(cmd.c_str());
+	stmt_put=db.PrepareStatement((std::string()+"insert into kv_"+name+" values(:key,:value);").c_str());
+	stmt_get=db.PrepareStatement((std::string()+"select value from kv_"+name+" where key = :key;").c_str());
+}
+
+void KeyValueStore::Put(const std::string & key, const std::string & value)
+{
+	stmt_put.Bind(key.c_str(),key.length());
+	stmt_put.Bind(value.c_str(),value.length());
+	stmt_put.Step();
+	stmt_put.Reset();
+}
+
+std::string KeyValueStore::GetBlob(const std::string & key)
+{
+	stmt_get.Bind(key.c_str(),key.length());
+	stmt_get.Step();
+	const void * blob=stmt_get.Get_blob(0);
+	int len=stmt_get.Get_blob_len(0);
+	std::string rv((const char*)blob,len);
+	stmt_get.Reset();
+	return rv;
+}
+
+void KeyValueStore::Put(const std::string & key, int32_t value)
+{
+	stmt_put.Bind(key.c_str(),key.length());
+	stmt_put.Bind(value);
+	stmt_put.Step();
+	stmt_put.Reset();
+}
+
+int32_t KeyValueStore::GetI32(const std::string & key)
+{
+	stmt_get.Bind(key.c_str(),key.length());
+	stmt_get.Step();
+	int rv=stmt_get.Get_int32(0);
+	stmt_get.Reset();
+	return rv;
+}
+
+void KeyValueStore::Clear(void)
+{
+	db.Execute((std::string()+"delete from kv_"+name).c_str());
 }
