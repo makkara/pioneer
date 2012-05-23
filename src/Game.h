@@ -11,6 +11,7 @@ class Player;
 class ShipController;
 class Space;
 class Database;
+class KeyValueStore;
 
 class Game {
 public:
@@ -21,12 +22,12 @@ public:
 	Game(const SystemPath &path, const vector3d &pos);
 
 	// load game
-	Game(Serializer::Reader &rd,std::string filename);
+	Game(std::string filename);
 
 	~Game();
 
 	// save game
-	void Serialize(Serializer::Writer &wr,std::string filename);
+	void Serialize(std::string filename);
 
 	// various game states
 	bool IsNormalSpace() const { return m_state == STATE_NORMAL; }
@@ -76,7 +77,7 @@ private:
 	void CreatePlayer();
 
 	void CreateViews();
-	void LoadViews(Serializer::Reader &rd);
+	void LoadViews(KeyValueStore * kv);
 	void DestroyViews();
 
 	void SwitchToHyperspace();

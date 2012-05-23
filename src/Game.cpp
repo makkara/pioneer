@@ -31,6 +31,9 @@ Game::Game(const SystemPath &path) :
 	m_requestedTimeAccel(TIMEACCEL_1X),
 	m_forceTimeAccel(false)
 {
+	m_db.Reset(new Database);
+	m_db->Create();
+
 	m_space.Reset(new Space(this, path));
 	SpaceStation *station = static_cast<SpaceStation*>(m_space->FindBodyForPath(&path));
 	assert(station);
@@ -45,8 +48,6 @@ Game::Game(const SystemPath &path) :
 
 	CreateViews();
 
-	m_db.Reset(new Database);
-	m_db->Create();
 }
 
 Game::Game(const SystemPath &path, const vector3d &pos) :
@@ -57,6 +58,10 @@ Game::Game(const SystemPath &path, const vector3d &pos) :
 	m_requestedTimeAccel(TIMEACCEL_1X),
 	m_forceTimeAccel(false)
 {
+	m_db.Reset(new Database);
+
+	m_db->Create();
+
 	m_space.Reset(new Space(this, path));
 	Body *b = m_space->FindBodyForPath(&path);
 	assert(b);
@@ -71,8 +76,6 @@ Game::Game(const SystemPath &path, const vector3d &pos) :
 	m_player->SetPosition(pos);
 	m_player->SetVelocity(vector3d(0,0,0));
 
-	m_db.Reset(new Database);
-	m_db->Create();
 
 	CreateViews();
 }
@@ -102,35 +105,37 @@ Game::~Game()
 	m_player.Reset();
 }
 
-Game::Game(Serializer::Reader &rd,std::string filename) :
+Game::Game(std::string filename) :
 	m_timeAccel(TIMEACCEL_PAUSED),
 	m_requestedTimeAccel(TIMEACCEL_PAUSED),
 	m_forceTimeAccel(false)
 {
-	// signature check
-	for (Uint32 i = 0; i < strlen(s_saveStart)+1; i++)
-		if (rd.Byte() != s_saveStart[i]) throw SavedGameCorruptException();
+	
+	//get database file
+	m_db.Reset(new Database());
+	m_db->Load(filename);
+	KeyValueStore data(*m_db,"savegame");
+
+	//Serializer::Reader rd(data.GetBlob("blob"));
 
 	// version check
-	rd.SetStreamVersion(rd.Int32());
-	fprintf(stderr, "savefile version: %d\n", rd.StreamVersion());
-	if (rd.StreamVersion() != s_saveVersion) {
+	unsigned int version=data.GetI32("Version");
+
+	fprintf(stderr, "savefile version: %d\n", version);
+	if (version != s_saveVersion) {
 		fprintf(stderr, "can't load savefile, expected version: %d\n", s_saveVersion);
 		throw SavedGameCorruptException();
 	}
-
-	//get database file
-	m_db.Reset(new Database(filename+".db"));
-
 	Serializer::Reader section;
+	section.SetStreamVersion(version);
 
 	// space, all the bodies and things
-	section = rd.RdSection("Space");
+	section = data.GetBlob("Space");
 	m_space.Reset(new Space(this, section));
 
 	
 	// game state and space transition state
-	section = rd.RdSection("Game");
+	section = data.GetBlob("Game");
 
 	m_player.Reset(static_cast<Player*>(m_space->GetBodyByIndex(section.Int32())));
 
@@ -149,39 +154,43 @@ Game::Game(Serializer::Reader &rd,std::string filename) :
 
 
 	// system political stuff
-	section = rd.RdSection("Polit");
+	section = data.GetBlob("Polit");
 	Polit::Unserialize(section);
 
 
 	// views
-	LoadViews(rd);
+	LoadViews(&data);
 
 
 	// lua
-	section = rd.RdSection("LuaModules");
+	section = data.GetBlob("LuaModules");
 	Pi::luaSerializer->Unserialize(section);
 
-
-	// signature check
-	for (Uint32 i = 0; i < strlen(s_saveEnd)+1; i++)
-		if (rd.Byte() != s_saveEnd[i]) throw SavedGameCorruptException();
+	//clear kv store, not needed after load
+	data.Clear();
 }
 
-void Game::Serialize(Serializer::Writer &wr,std::string filename)
-{
-	// leading signature
-	for (Uint32 i = 0; i < strlen(s_saveStart)+1; i++)
-		wr.Byte(s_saveStart[i]);
-	
+void Game::Serialize(std::string filename)
+{	
+	/*remove previous file*/
+	FILE *f = fopen(filename.c_str(), "wb");
+	if (!f) throw CouldNotOpenFileException();
+	fclose(f);
+
+	Serializer::Writer wr;
+					
+	m_db->Save(filename);
+	Database output_db(filename);//open output file as another db handle
+	KeyValueStore kv_save(output_db,"savegame");
+
 	// version
-	wr.Int32(s_saveVersion);
+	kv_save.Put("Version",s_saveVersion);
 
 	Serializer::Writer section;
 
 	// space, all the bodies and things
 	m_space->Serialize(section);
-	wr.WrSection("Space", section.GetData());
-
+	kv_save.Put("Space", section.GetData());
 	
 	// game state and space transition state
 	section = Serializer::Writer();
@@ -201,40 +210,34 @@ void Game::Serialize(Serializer::Writer &wr,std::string filename)
 	section.Double(m_hyperspaceDuration);
 	section.Double(m_hyperspaceEndTime);
 	
-	wr.WrSection("Game", section.GetData());
+	kv_save.Put("Game", section.GetData());
 
 
 	// system political data (crime etc)
 	section = Serializer::Writer();
 	Polit::Serialize(section);
-	wr.WrSection("Polit", section.GetData());
+	
+	kv_save.Put("Polit", section.GetData());
 
 
 	// views. must be saved in init order
 	section = Serializer::Writer();
 	Pi::cpan->Save(section);
-	wr.WrSection("ShipCpanel", section.GetData());
-	
+	kv_save.Put("ShipCpanel", section.GetData());
+
 	section = Serializer::Writer();
 	Pi::sectorView->Save(section);
-	wr.WrSection("SectorView", section.GetData());
+	kv_save.Put("SectorView", section.GetData());
 
 	section = Serializer::Writer();
 	Pi::worldView->Save(section);
-	wr.WrSection("WorldView", section.GetData());
+	kv_save.Put("WorldView", section.GetData());
 
 
 	// lua
 	section = Serializer::Writer();
 	Pi::luaSerializer->Serialize(section);
-	wr.WrSection("LuaModules", section.GetData());
-
-
-	// trailing signature
-	for (Uint32 i = 0; i < strlen(s_saveEnd)+1; i++)
-		wr.Byte(s_saveEnd[i]);
-
-	m_db->Save(filename+".db");
+	kv_save.Put("LuaModules", section.GetData());
 }
 
 void Game::TimeStep(float step)
@@ -641,7 +644,7 @@ void Game::CreateViews()
 }
 
 // XXX mostly a copy of CreateViews
-void Game::LoadViews(Serializer::Reader &rd)
+void Game::LoadViews(KeyValueStore * data)
 {
 	Pi::SetView(0);
 
@@ -649,13 +652,13 @@ void Game::LoadViews(Serializer::Reader &rd)
 	Pi::game = this;
 	Pi::player = m_player.Get();
 
-	Serializer::Reader section = rd.RdSection("ShipCpanel");
+	Serializer::Reader section = data->GetBlob("ShipCpanel");
 	Pi::cpan = new ShipCpanel(section, Pi::renderer);
 
-	section = rd.RdSection("SectorView");
+	section = data->GetBlob("SectorView");
 	Pi::sectorView = new SectorView(section);
 
-	section = rd.RdSection("WorldView");
+	section = data->GetBlob("WorldView");
 	Pi::worldView = new WorldView(section);
 
 	Pi::galacticView = new GalacticView();

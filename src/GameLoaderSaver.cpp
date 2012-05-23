@@ -4,6 +4,7 @@
 #include "Lang.h"
 #include "Pi.h"
 #include "FileSystem.h"
+#include "Database.h"
 
 GameLoaderSaver::GameLoaderSaver(FileSelectorWidget::Type type, const std::string &title) : m_type(type), m_title(title)
 {
@@ -66,14 +67,8 @@ void GameLoader::DialogMainLoop()
 
 bool GameLoader::LoadFromFile(const std::string &filename)
 {
-	try {
-		FILE *f = fopen(GetFilename().c_str(), "rb");
-		if (!f) throw CouldNotOpenFileException();
-
-		Serializer::Reader rd(f);
-		fclose(f);
-
-		m_game = new Game(rd,GetFilename());
+	try {		
+		m_game = new Game(GetFilename());
 	}
 	catch (SavedGameCorruptException) {
 		Gui::Screen::ShowBadError(Lang::GAME_LOAD_CORRUPT);
@@ -102,19 +97,8 @@ bool GameSaver::SaveToFile(const std::string &filename)
 		if (!FileSystem::rawFileSystem.MakeDirectory(Pi::GetSaveDir())) {
 			throw CouldNotOpenFileException();
 		}
-
-		Serializer::Writer wr;
-		m_game->Serialize(wr,filename);
-
-		const std::string data = wr.GetData();
-
-		FILE *f = fopen(filename.c_str(), "wb");
-		if (!f) throw CouldNotOpenFileException();
-
-		size_t nwritten = fwrite(data.data(), data.length(), 1, f);
-		fclose(f);
-
-		if (nwritten != 1) throw CouldNotWriteToFileException();
+		
+		m_game->Serialize(filename);
 
 		success = true;
 	}
