@@ -76,6 +76,7 @@ namespace Serializer {
 		void Auto(double *x) { *x = Double(); }
 		int StreamVersion() const { return m_streamVersion; }
 		void SetStreamVersion(int x) { m_streamVersion = x; }
+		Reader & operator=(const std::string &data){m_data=data;m_pos=0;return *this;};
 	private:
 		std::string m_data;
 		size_t m_pos;
