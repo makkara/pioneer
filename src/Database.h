@@ -89,6 +89,10 @@ public:
 	 */
 	void Execute(const char * statement);
 
+	//Create and load database
+	Database(std::string filename);
+
+	//Create empty database object, with no db handle
 	Database();
 	virtual ~Database();
 };

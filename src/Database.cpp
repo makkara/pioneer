@@ -1,5 +1,11 @@
 #include "Database.h"
 
+//Create and load database
+Database::Database(std::string filename)
+{
+	handle=NULL;
+	Load(filename);
+}
 
 Database::Database(){
 	handle=NULL;	
