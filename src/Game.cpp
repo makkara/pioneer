@@ -17,7 +17,7 @@
 #include "InfoView.h"
 #include "ObjectViewerView.h"
 #include "graphics/Renderer.h"
-#include "Factions.h"
+#include "Database.h"
 
 static const int  s_saveVersion   = 51;
 static const char s_saveStart[]   = "PIONEER";
@@ -45,7 +45,8 @@ Game::Game(const SystemPath &path) :
 
 	CreateViews();
 
-	m_factions.Reset(new Factions);
+	m_db.Reset(new Database);
+	m_db->Create();
 }
 
 Game::Game(const SystemPath &path, const vector3d &pos) :
@@ -70,7 +71,8 @@ Game::Game(const SystemPath &path, const vector3d &pos) :
 	m_player->SetPosition(pos);
 	m_player->SetVelocity(vector3d(0,0,0));
 
-	m_factions.Reset(new Factions);
+	m_db.Reset(new Database);
+	m_db->Create();
 
 	CreateViews();
 }
@@ -118,7 +120,7 @@ Game::Game(Serializer::Reader &rd,std::string filename) :
 	}
 
 	//get database file
-	m_factions.Reset(new Factions(filename+".db"));
+	m_db.Reset(new Database(filename+".db"));
 
 	Serializer::Reader section;
 
@@ -232,7 +234,7 @@ void Game::Serialize(Serializer::Writer &wr,std::string filename)
 	for (Uint32 i = 0; i < strlen(s_saveEnd)+1; i++)
 		wr.Byte(s_saveEnd[i]);
 
-	m_factions->Save(filename+".db");
+	m_db->Save(filename+".db");
 }
 
 void Game::TimeStep(float step)
